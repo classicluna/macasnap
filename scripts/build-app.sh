@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Builds Macasnap.app into ./build. Pass --install to copy it to ~/Applications and launch it.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+APP="build/Macasnap.app"
+BUNDLE_ID="com.evan.macasnap"
+
+swift build -c release --arch arm64
+BIN="$(swift build -c release --arch arm64 --show-bin-path)/Macasnap"
+
+rm -rf "$APP"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp "$BIN" "$APP/Contents/MacOS/Macasnap"
+
+cat > "$APP/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key><string>Macasnap</string>
+    <key>CFBundleIdentifier</key><string>${BUNDLE_ID}</string>
+    <key>CFBundleName</key><string>Macasnap</string>
+    <key>CFBundleDisplayName</key><string>Macasnap</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>1.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSScreenCaptureUsageDescription</key><string>Macasnap captures the area you select to beautify it.</string>
+</dict>
+</plist>
+PLIST
+
+# Ad-hoc signature: macOS asks for Screen Recording permission again after every rebuild.
+codesign --force --sign - --identifier "$BUNDLE_ID" "$APP"
+echo "Built $APP"
+
+if [[ "${1:-}" == "--install" ]]; then
+    DEST="$HOME/Applications/Macasnap.app"
+    pkill -x Macasnap || true
+    mkdir -p "$HOME/Applications"
+    rm -rf "$DEST"
+    cp -R "$APP" "$DEST"
+    open "$DEST"
+    echo "Installed $DEST"
+fi
