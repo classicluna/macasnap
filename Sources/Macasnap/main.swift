@@ -74,13 +74,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func capture(_ mode: Capture.Mode) {
         guard !capturing else { return }
+        // Without Screen Recording access screencapture silently returns a fully transparent image.
+        guard CGPreflightScreenCaptureAccess() else { return showPermissionAlert() }
         capturing = true
         Capture.interactive(mode) { [weak self] snap in
             guard let self else { return }
             self.capturing = false
             guard let snap else { return } // cancelled
+            if Renderer.isBlank(snap.image) { return self.showPermissionAlert() }
             self.handle(snap)
         }
+    }
+
+    private func showPermissionAlert() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Macasnap needs Screen Recording access"
+        alert.informativeText = "Turn on Macasnap in System Settings > Privacy & Security > Screen & System Audio Recording, then relaunch Macasnap. macOS only applies the permission after a relaunch."
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Relaunch Macasnap")
+        alert.addButton(withTitle: "Cancel")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            CGRequestScreenCaptureAccess()
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+        case .alertSecondButtonReturn:
+            relaunch()
+        default:
+            break
+        }
+    }
+
+    private func relaunch() {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = ["-c", "sleep 1; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
+        try? p.run()
+        NSApp.terminate(nil)
     }
 
     private func handle(_ snap: Snapshot) {

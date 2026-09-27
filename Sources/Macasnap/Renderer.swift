@@ -22,6 +22,22 @@ struct Snapshot {
 }
 
 enum Renderer {
+    /// True when the image is (almost) fully transparent, which is what screencapture produces
+    /// when the app lacks Screen Recording access.
+    static func isBlank(_ image: CGImage) -> Bool {
+        let side = 64
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        let drawn = pixels.withUnsafeMutableBytes { buf -> Bool in
+            guard let ctx = CGContext(data: buf.baseAddress, width: side, height: side, bitsPerComponent: 8,
+                                      bytesPerRow: side * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return false }
+            ctx.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
+            return true
+        }
+        return drawn && stride(from: 3, to: pixels.count, by: 4).allSatisfy { pixels[$0] < 4 }
+    }
+
     // MARK: Balance
 
     /// If the snippet has a uniform-colour border, crops it so the content has equal margins on
