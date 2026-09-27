@@ -17,6 +17,12 @@ Installs to `~/Applications/Macasnap.app` and opens it. A setup window then walk
 Screen Recording access, taking over Cmd-Shift-4, launch at login, and the save folder.
 Apple Silicon only.
 
+If nothing opens, run the diagnostic and send the output (it is also copied to the clipboard):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/classicluna/macasnap/main/diagnose.sh | bash
+```
+
 Macasnap checks GitHub for a new release at launch and every 12 hours. When one exists, the
 menu bar icon gets a red dot, the menu shows "Update to Macasnap X...", and the editor shows an
 Update button. Updating downloads the release, checks it is signed by the same certificate as the
