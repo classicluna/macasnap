@@ -40,7 +40,8 @@ final class Updater: ObservableObject {
         guard let url = URL(string: "https://api.github.com/repos/\(Self.repo)/releases/latest") else { return }
 
         do {
-            var request = URLRequest(url: url)
+            // GitHub marks this response cacheable for 60 s; a fresh release must show up immediately.
+            var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
             request.setValue("Macasnap Updater", forHTTPHeaderField: "User-Agent")
             let (data, response) = try await URLSession.shared.data(for: request)
