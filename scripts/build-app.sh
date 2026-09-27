@@ -5,6 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 APP="build/Macasnap.app"
 BUNDLE_ID="com.evan.macasnap"
+VERSION="$(< VERSION)"
 
 swift build -c release --arch arm64
 BIN="$(swift build -c release --arch arm64 --show-bin-path)/Macasnap"
@@ -23,8 +24,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key><string>Macasnap</string>
     <key>CFBundleDisplayName</key><string>Macasnap</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+    <key>CFBundleVersion</key><string>${VERSION}</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>

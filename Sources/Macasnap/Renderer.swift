@@ -24,11 +24,12 @@ struct Snapshot {
 enum Renderer {
     // MARK: Balance
 
-    /// If the snippet has a uniform-colour border, crops it so the content has equal margins on
-    /// every side (the smallest of the four original margins). Otherwise returns the image as is.
-    static func balanced(_ image: CGImage) -> CGImage {
+    /// If the snippet has a uniform-colour border, returns the crop (pixels, top-left origin) that
+    /// gives the content equal margins on every side (the smallest of the four original margins).
+    /// Nil when the image has no uniform border or is already balanced.
+    static func balanceRect(_ image: CGImage) -> CGRect? {
         let w = image.width, h = image.height
-        guard w > 8, h > 8 else { return image }
+        guard w > 8, h > 8 else { return nil }
 
         let bytesPerRow = w * 4
         var pixels = [UInt8](repeating: 0, count: bytesPerRow * h)
@@ -41,7 +42,7 @@ enum Renderer {
             ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
             return true
         }
-        guard drawn else { return image }
+        guard drawn else { return nil }
 
         // Row 0 of the buffer is the top of the image.
         @inline(__always) func px(_ x: Int, _ y: Int) -> (Int, Int, Int, Int) {
@@ -66,7 +67,7 @@ enum Renderer {
         for y in 1..<(h - 1) { sample(0, y); sample(w - 1, y) }
 
         guard let (key, count) = counts.max(by: { $0.value < $1.value }),
-              Double(count) / Double(borderCount) >= 0.9 else { return image }
+              Double(count) / Double(borderCount) >= 0.9 else { return nil }
         let s = sums[key]!
         let bg = (s.0 / count, s.1 / count, s.2 / count)
         let tolerance = 20
@@ -85,23 +86,20 @@ enum Renderer {
                 maxY = y
             }
         }
-        guard maxX >= 0 else { return image } // blank selection
+        guard maxX >= 0 else { return nil } // blank selection
 
         let margins = [minX, w - 1 - maxX, minY, h - 1 - maxY]
         let m = margins.min()!
-        guard margins.max()! - m > 2 else { return image } // already balanced
+        guard margins.max()! - m > 2 else { return nil } // already balanced
 
-        let rect = CGRect(x: minX - m, y: minY - m, width: maxX - minX + 1 + 2 * m, height: maxY - minY + 1 + 2 * m)
-        return image.cropping(to: rect) ?? image
+        return CGRect(x: minX - m, y: minY - m, width: maxX - minX + 1 + 2 * m, height: maxY - minY + 1 + 2 * m)
     }
 
     // MARK: Compose
 
-    static func render(_ snap: Snapshot, style: Style, wallpaper: CGImage?) -> CGImage? {
-        let image = snap.image
-        let scale = snap.scale
-        let w = CGFloat(image.width), h = CGFloat(image.height)
-
+    /// Canvas size and snippet placement (pixels, bottom-left origin) for a snippet of `size` pixels.
+    static func layout(snippet size: CGSize, style: Style) -> (canvas: CGSize, snip: CGRect) {
+        let w = size.width, h = size.height
         let pad = (style.padding * (w + h) / 2).rounded()
         var canvasW = w + 2 * pad, canvasH = h + 2 * pad
         if let ratio = style.aspect.value {
@@ -109,6 +107,16 @@ enum Renderer {
         }
         canvasW = canvasW.rounded()
         canvasH = canvasH.rounded()
+        let snip = CGRect(x: ((canvasW - w) / 2).rounded(), y: ((canvasH - h) / 2).rounded(), width: w, height: h)
+        return (CGSize(width: canvasW, height: canvasH), snip)
+    }
+
+    static func render(_ snap: Snapshot, style: Style, wallpaper: CGImage?) -> CGImage? {
+        let image = snap.image
+        let scale = snap.scale
+        let w = CGFloat(image.width), h = CGFloat(image.height)
+        let (canvasSize, snipRect) = layout(snippet: CGSize(width: w, height: h), style: style)
+        let canvasW = canvasSize.width, canvasH = canvasSize.height
 
         let space = image.colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? CGColorSpace(name: CGColorSpace.sRGB)!
         guard let ctx = CGContext(
@@ -120,7 +128,6 @@ enum Renderer {
 
         drawBackground(style.background, wallpaper: wallpaper, in: canvas, ctx: ctx)
 
-        let snipRect = CGRect(x: ((canvasW - w) / 2).rounded(), y: ((canvasH - h) / 2).rounded(), width: w, height: h)
         let radius = min(style.cornerRadius * scale, min(w, h) / 2)
 
         ctx.saveGState()

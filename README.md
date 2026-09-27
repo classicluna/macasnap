@@ -1,50 +1,66 @@
 # Macasnap
 
-Menu bar screenshot beautifier (Xnapper-style) meant to replace Cmd-Shift-4.
+Menu bar screenshot beautifier (Xnapper-style) that replaces Cmd-Shift-4.
 
-Press Cmd-Shift-4, select an area (Space switches to window mode, Esc cancels). The snippet is
-centred on a gradient or macOS wallpaper with padding, rounded corners and a drop shadow, copied
-to the clipboard, and opened in an editor where you can tweak it.
+Press Cmd-Shift-4 and drag out an area (Space switches to window mode, Esc or right-click
+cancels). The snippet is centred on a gradient or macOS wallpaper with padding, rounded corners
+and a drop shadow, copied to the clipboard, and shown as a floating thumbnail in the corner.
+Drag the thumbnail into any app, or click it to open the editor.
 
-- **Balance**: if the snippet has a uniform-colour border, uneven blank margins are trimmed to the
-  smallest one so the content sits evenly.
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/classicluna/macasnap/main/install.sh | bash
+```
+
+Installs to `~/Applications/Macasnap.app` and opens it. A setup window then walks through
+Screen Recording access, taking over Cmd-Shift-4, launch at login, and the save folder.
+Apple Silicon only.
+
+Macasnap checks GitHub for a new release at launch and every 12 hours. When one exists, the
+menu bar icon gets a red dot, the menu shows "Update to Macasnap X...", and the editor shows an
+Update button. Updating downloads the release, checks it is signed by the same certificate as the
+running app, swaps it in and relaunches; permissions carry over.
+
+## Features
+
+- **Capture**: area or window, frozen-screen overlay with size readout, shutter sound.
+- **Balance**: if the snippet has a uniform-colour border, uneven blank margins are trimmed so
+  the content sits evenly.
 - **Backgrounds**: 14 gradients, the current desktop picture, every still in
   `/System/Library/Desktop Pictures`, any image file, a solid colour, or transparent.
-- **Editor**: padding, corner radius, shadow, aspect ratio (Auto, 16:9, 4:3, 3:2, 1:1, 9:16).
-  Copy (Cmd-C), Save to the screenshot folder (Cmd-S), Save As (Cmd-Shift-S), drag the preview out,
-  Esc to close. The last-used style becomes the default for the next capture.
-- **Output**: PNG at the display's pixel density (Retina captures stay 2x).
+- **Layout**: padding, corner radius, shadow, aspect ratio (Auto, 16:9, 4:3, 3:2, 1:1, 9:16).
+- **Markup**: arrows, boxes, text, highlighter and pixelate-redaction, 8 colours, undo (Cmd-Z).
+  The wand runs on-device text recognition and redacts emails, phone numbers, card numbers,
+  IP addresses and API-key-like tokens.
+- **Output**: the clipboard (and the auto-saved file, if enabled) follow every edit. Cmd-C copies,
+  Cmd-S saves to the screenshot folder, Cmd-Shift-S saves elsewhere, or drag the preview out.
+  PNGs keep the display's pixel density.
+- **Menu**: clipboard / auto-save toggles, thumbnail or editor after capture, Cmd-Shift-4
+  takeover, launch at login, setup guide.
 
-## Build and install
+Saves go to the system screenshot folder (`defaults read com.apple.screencapture location`,
+Desktop if unset), so Macasnap and Cmd-Shift-5 agree.
 
-Requires the Xcode Command Line Tools (Swift 6), macOS 14+.
+## Development
+
+Requires the Xcode Command Line Tools (Swift 6), macOS 14+. SwiftUI macros (`@State`,
+`@Observable`) are unavailable without Xcode; use `ObservableObject`/`@Published`.
 
 ```sh
 ./scripts/build-app.sh            # build/Macasnap.app
 ./scripts/build-app.sh --install  # copy to ~/Applications and launch
-```
-The build signs with a self-signed "Macasnap Self-Signed" identity that `scripts/make-signing-cert.sh`
-creates on first build in `~/Library/Keychains/macasnap-signing.keychain-db`. A stable identity is
-what keeps the Screen Recording grant valid across rebuilds; ad-hoc signatures change every build
-and macOS then silently ignores the old grant while still showing it as enabled.
-
-## First run
-
-1. Grant **Screen Recording** when prompted (System Settings > Privacy & Security), then quit and
-   relaunch Macasnap. If the toggle is on but captures still fail, run
-   `tccutil reset ScreenCapture com.evan.macasnap`, relaunch, and grant again.
-2. In the menu bar icon, enable **Use Cmd-Shift-4 for Macasnap**. This turns off the system
-   "Save picture of selected area as a file" shortcut, which otherwise intercepts the key first.
-   Unchecking it restores the system shortcut.
-3. Optionally enable **Launch at Login**.
-
-Menu toggles also control whether a capture is copied to the clipboard, saved to the screenshot
-folder, and whether the editor opens.
-
-## CLI
-
-```sh
-Macasnap.app/Contents/MacOS/Macasnap --render in.png out.png
+./scripts/release.sh 1.2.0        # bump VERSION, build, tag, publish GitHub release
 ```
 
-Renders a file with the saved style, no UI.
+Builds are signed with a self-signed "Macasnap Self-Signed" identity that
+`scripts/make-signing-cert.sh` creates on first build in
+`~/Library/Keychains/macasnap-signing.keychain-db`. macOS ties the Screen Recording grant and the
+updater's signature check to that certificate, so **every release must be signed with the same
+one**: back up that keychain file. Losing it means users must reinstall with the one-liner and
+grant Screen Recording again.
+
+If captures fail although Screen Recording shows as enabled, reset the stale grant with
+`tccutil reset ScreenCapture com.evan.macasnap`, relaunch, and grant again.
+
+`Macasnap.app/Contents/MacOS/Macasnap --render in.png out.png` renders a file with the saved style.

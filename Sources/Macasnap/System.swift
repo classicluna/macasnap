@@ -85,7 +85,7 @@ enum Prefs {
     private static let d = UserDefaults.standard
 
     static func register() {
-        d.register(defaults: ["copyOnCapture": true, "saveOnCapture": false, "openEditor": true])
+        d.register(defaults: ["copyOnCapture": true, "saveOnCapture": false, "afterCapture": AfterCapture.thumbnail.rawValue])
     }
 
     static var copyOnCapture: Bool {
@@ -98,9 +98,15 @@ enum Prefs {
         set { d.set(newValue, forKey: "saveOnCapture") }
     }
 
-    static var openEditor: Bool {
-        get { d.bool(forKey: "openEditor") }
-        set { d.set(newValue, forKey: "openEditor") }
+    enum AfterCapture: String {
+        /// Floating preview in the corner, like the system tool; click it to edit.
+        case thumbnail
+        case editor
+    }
+
+    static var afterCapture: AfterCapture {
+        get { AfterCapture(rawValue: d.string(forKey: "afterCapture") ?? "") ?? .thumbnail }
+        set { d.set(newValue.rawValue, forKey: "afterCapture") }
     }
 
     static var launchAtLogin: Bool {

@@ -1,11 +1,13 @@
 import AppKit
 import Carbon.HIToolbox
+import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var hotKeys: [HotKey] = []
     private var editor: EditorWindowController?
+    private var updateObserver: AnyCancellable?
     /// The system screenshot shutter; kept alive so playback isn't cut off.
     private let shutter = NSSound(
         contentsOfFile: "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif",
@@ -16,7 +18,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Prefs.register()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "Macasnap")
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
@@ -24,12 +25,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Cmd-Shift-4: area capture (Space switches to window mode, like the system tool).
         hotKeys.append(HotKey(keyCode: kVK_ANSI_4, modifiers: cmdKey | shiftKey) { [weak self] in self?.capture(.area) })
 
-        if !CGPreflightScreenCaptureAccess() { CGRequestScreenCaptureAccess() }
+        updateObserver = Updater.shared.$available.sink { [weak self] release in
+            self?.statusItem.button?.image = Self.statusImage(badged: release != nil)
+        }
+        Updater.shared.start()
+        Onboarding.showIfNeeded()
+    }
+
+    /// Menu bar icon, with a dot when an update is waiting.
+    private static func statusImage(badged: Bool) -> NSImage? {
+        guard let symbol = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "Macasnap") else { return nil }
+        guard badged else { return symbol }
+        let size = symbol.size
+        let image = NSImage(size: size, flipped: false) { rect in
+            symbol.draw(in: rect)
+            NSColor.systemRed.setFill()
+            let d = size.width * 0.38
+            NSBezierPath(ovalIn: NSRect(x: rect.maxX - d, y: rect.maxY - d, width: d, height: d)).fill()
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     // Rebuilt on open so toggles reflect current state.
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        if let release = Updater.shared.available {
+            menu.addItem(item("Update to Macasnap \(release.version)...", #selector(installUpdate)))
+            menu.addItem(.separator())
+        }
         let area = item("Capture Area", #selector(captureArea), key: "4")
         area.keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(area)
@@ -39,11 +64,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(toggle("Copy to Clipboard After Capture", Prefs.copyOnCapture, #selector(toggleCopy)))
         menu.addItem(toggle("Save to \(Output.saveFolder.lastPathComponent) After Capture", Prefs.saveOnCapture, #selector(toggleSave)))
-        menu.addItem(toggle("Open Editor After Capture", Prefs.openEditor, #selector(toggleEditor)))
+        menu.addItem(toggle("Show Thumbnail After Capture", Prefs.afterCapture == .thumbnail, #selector(afterCaptureThumbnail)))
+        menu.addItem(toggle("Open Editor After Capture", Prefs.afterCapture == .editor, #selector(afterCaptureEditor)))
         menu.addItem(.separator())
 
         menu.addItem(toggle("Use Cmd-Shift-4 for Macasnap", !SystemShortcut.isAreaCaptureEnabled, #selector(toggleSystemShortcut)))
         menu.addItem(toggle("Launch at Login", Prefs.launchAtLogin, #selector(toggleLaunchAtLogin)))
+        menu.addItem(item("Setup Guide...", #selector(showSetupGuide)))
         menu.addItem(.separator())
         menu.addItem(item("Quit Macasnap", #selector(NSApplication.terminate(_:)), key: "q"))
     }
@@ -64,7 +91,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func captureWindow() { capture(.window) }
     @objc private func toggleCopy() { Prefs.copyOnCapture.toggle() }
     @objc private func toggleSave() { Prefs.saveOnCapture.toggle() }
-    @objc private func toggleEditor() { Prefs.openEditor.toggle() }
+    @objc private func afterCaptureThumbnail() { Prefs.afterCapture = .thumbnail }
+    @objc private func afterCaptureEditor() { Prefs.afterCapture = .editor }
+    @objc private func showSetupGuide() { Onboarding.show() }
+    @objc private func installUpdate() { Updater.shared.installAvailable() }
     @objc private func toggleLaunchAtLogin() { Prefs.launchAtLogin.toggle() }
     @objc private func toggleSystemShortcut() {
         SystemShortcut.setAreaCaptureEnabled(!SystemShortcut.isAreaCaptureEnabled)
@@ -128,12 +158,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func handle(_ snap: Snapshot) {
         let model = EditorModel(snapshot: snap, style: Style.load())
-        if let image = model.rendered {
-            if Prefs.copyOnCapture { Output.copy(image, scale: snap.scale) }
-            if Prefs.saveOnCapture { Output.save(image, scale: snap.scale) }
+        model.deliverInitial()
+        switch Prefs.afterCapture {
+        case .editor:
+            openEditor(model)
+        case .thumbnail:
+            guard let image = model.rendered else { return }
+            ThumbnailPanel.show(image: image, scale: snap.scale) { [weak self] in self?.openEditor(model) }
         }
-        guard Prefs.openEditor else { return }
+    }
 
+    private func openEditor(_ model: EditorModel) {
+        ThumbnailPanel.dismiss()
         editor?.onClose = nil
         editor?.close()
         let controller = EditorWindowController(model: model)
@@ -150,8 +186,8 @@ if args.count == 4, args[1] == "--render" {
         FileHandle.standardError.write("cannot read \(args[2])\n".data(using: .utf8)!)
         exit(1)
     }
-    var balanced: CGImage?
-    guard let image = EditorModel.render(snap, balanced: &balanced, style: Style.load()),
+    var crop: CGRect??
+    guard let image = EditorModel.render(snap, crop: &crop, annotations: [], style: Style.load())?.image,
           Output.save(image, scale: snap.scale, to: URL(fileURLWithPath: args[3])) != nil else { exit(1) }
     exit(0)
 }
