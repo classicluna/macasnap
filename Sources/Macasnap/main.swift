@@ -6,6 +6,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var hotKeys: [HotKey] = []
     private var editor: EditorWindowController?
+    /// The system screenshot shutter; kept alive so playback isn't cut off.
+    private let shutter = NSSound(
+        contentsOfFile: "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif",
+        byReference: true
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Prefs.register()
@@ -75,13 +80,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard CGPreflightScreenCaptureAccess() else { return showPermissionAlert() }
         CaptureSession.start(mode) { [weak self] outcome in
             switch outcome {
-            case .captured(let snap): self?.handle(snap)
+            case .captured(let snap):
+                self?.playShutter()
+                self?.handle(snap)
             case .cancelled: break
             case .failed(let error):
                 NSLog("Macasnap: capture failed: \(error)")
                 self?.showPermissionAlert()
             }
         }
+    }
+
+    /// Same as the system tool: silent when "Play user interface sound effects" is off.
+    private func playShutter() {
+        let uiSounds = UserDefaults(suiteName: "com.apple.systemsound")?.object(forKey: "com.apple.sound.uiaudio.enabled") as? Int
+        guard uiSounds != 0 else { return }
+        shutter?.stop()
+        shutter?.play()
     }
 
     private func showPermissionAlert() {
