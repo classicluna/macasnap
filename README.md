@@ -57,8 +57,9 @@ Builds are signed with a self-signed "Macasnap Self-Signed" identity that
 `scripts/make-signing-cert.sh` creates on first build in
 `~/Library/Keychains/macasnap-signing.keychain-db`. macOS ties the Screen Recording grant and the
 updater's signature check to that certificate, so **every release must be signed with the same
-one**: back up that keychain file. Losing it means users must reinstall with the one-liner and
-grant Screen Recording again.
+one**. Losing it means users must reinstall with the one-liner and grant Screen Recording again.
+`scripts/backup-signing-cert.sh` stores it in Bitwarden (secure note with the `.p12` and its
+password); `scripts/make-signing-cert.sh --restore FILE.p12` installs a backup on a new machine.
 
 If captures fail although Screen Recording shows as enabled, reset the stale grant with
 `tccutil reset ScreenCapture com.evan.macasnap`, relaunch, and grant again.
