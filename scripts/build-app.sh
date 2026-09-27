@@ -33,8 +33,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc signature: macOS asks for Screen Recording permission again after every rebuild.
-codesign --force --sign - --identifier "$BUNDLE_ID" "$APP"
+# A stable signing identity keeps the Screen Recording grant across rebuilds (ad-hoc would not).
+./scripts/make-signing-cert.sh >/dev/null
+security unlock-keychain -p macasnap "$HOME/Library/Keychains/macasnap-signing.keychain-db"
+codesign --force --sign "Macasnap Self-Signed" --keychain "$HOME/Library/Keychains/macasnap-signing.keychain-db" \
+    --identifier "$BUNDLE_ID" "$APP"
 echo "Built $APP"
 
 if [[ "${1:-}" == "--install" ]]; then

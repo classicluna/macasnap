@@ -23,11 +23,16 @@ Requires the Xcode Command Line Tools (Swift 6), macOS 14+.
 ./scripts/build-app.sh            # build/Macasnap.app
 ./scripts/build-app.sh --install  # copy to ~/Applications and launch
 ```
+The build signs with a self-signed "Macasnap Self-Signed" identity that `scripts/make-signing-cert.sh`
+creates on first build in `~/Library/Keychains/macasnap-signing.keychain-db`. A stable identity is
+what keeps the Screen Recording grant valid across rebuilds; ad-hoc signatures change every build
+and macOS then silently ignores the old grant while still showing it as enabled.
 
 ## First run
 
 1. Grant **Screen Recording** when prompted (System Settings > Privacy & Security), then quit and
-   relaunch Macasnap. The build is ad-hoc signed, so macOS asks again after each rebuild.
+   relaunch Macasnap. If the toggle is on but captures still fail, run
+   `tccutil reset ScreenCapture com.evan.macasnap`, relaunch, and grant again.
 2. In the menu bar icon, enable **Use Cmd-Shift-4 for Macasnap**. This turns off the system
    "Save picture of selected area as a file" shortcut, which otherwise intercepts the key first.
    Unchecking it restores the system shortcut.
