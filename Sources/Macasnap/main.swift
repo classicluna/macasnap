@@ -37,8 +37,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let symbol = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "Macasnap") else { return nil }
         guard badged else { return symbol }
         let size = symbol.size
+        // Not a template (the dot must stay red), so tint the glyph for the menu bar's appearance at draw time.
         let image = NSImage(size: size, flipped: false) { rect in
             symbol.draw(in: rect)
+            NSColor.labelColor.set()
+            rect.fill(using: .sourceAtop)
             NSColor.systemRed.setFill()
             let d = size.width * 0.38
             NSBezierPath(ovalIn: NSRect(x: rect.maxX - d, y: rect.maxY - d, width: d, height: d)).fill()
