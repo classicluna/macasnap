@@ -1,6 +1,6 @@
 # Macasnap
 
-Menu bar screenshot beautifier (Xnapper-style) that replaces Cmd-Shift-4.
+Menu bar screenshot beautifier that replaces Cmd-Shift-4.
 
 Press Cmd-Shift-4 and drag out an area (Space switches to window mode, Esc or right-click
 cancels). The snippet is centred on a gradient or macOS wallpaper with padding, rounded corners
