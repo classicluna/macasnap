@@ -2,34 +2,6 @@ import AppKit
 import Carbon.HIToolbox
 import ServiceManagement
 
-// MARK: - Capture
-
-enum Capture {
-    enum Mode { case area, window }
-
-    /// Runs the native macOS selection UI (same crosshair as Cmd-Shift-4; Space toggles window mode).
-    /// Calls back on the main thread with nil when the user cancels.
-    static func interactive(_ mode: Mode, completion: @escaping (Snapshot?) -> Void) {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("macasnap-\(UUID().uuidString).png")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        // -i interactive, -o no window shadow (we draw our own), -W start in window mode.
-        process.arguments = (mode == .window ? ["-i", "-o", "-W"] : ["-i", "-o"]) + [url.path]
-        process.terminationHandler = { _ in
-            let snap = Snapshot(url: url)
-            try? FileManager.default.removeItem(at: url)
-            DispatchQueue.main.async { completion(snap) }
-        }
-        do {
-            try process.run()
-        } catch {
-            NSLog("Macasnap: screencapture failed: \(error)")
-            completion(nil)
-        }
-    }
-}
-
 // MARK: - Global hotkey (Carbon, needs no Accessibility permission)
 
 final class HotKey {

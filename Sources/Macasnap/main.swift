@@ -6,7 +6,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var hotKeys: [HotKey] = []
     private var editor: EditorWindowController?
-    private var capturing = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Prefs.register()
@@ -72,17 +71,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         editor?.window?.makeKeyAndOrderFront(nil)
     }
 
-    private func capture(_ mode: Capture.Mode) {
-        guard !capturing else { return }
-        // Without Screen Recording access screencapture silently returns a fully transparent image.
+    private func capture(_ mode: CaptureSession.Mode) {
         guard CGPreflightScreenCaptureAccess() else { return showPermissionAlert() }
-        capturing = true
-        Capture.interactive(mode) { [weak self] snap in
-            guard let self else { return }
-            self.capturing = false
-            guard let snap else { return } // cancelled
-            if Renderer.isBlank(snap.image) { return self.showPermissionAlert() }
-            self.handle(snap)
+        CaptureSession.start(mode) { [weak self] outcome in
+            switch outcome {
+            case .captured(let snap): self?.handle(snap)
+            case .cancelled: break
+            case .failed(let error):
+                NSLog("Macasnap: capture failed: \(error)")
+                self?.showPermissionAlert()
+            }
         }
     }
 
