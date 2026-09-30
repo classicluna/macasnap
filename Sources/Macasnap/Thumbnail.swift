@@ -58,11 +58,15 @@ import AppKit
         self.scale = scale
         self.image = Renderer.nsImage(image, scale: scale)
         self.onOpen = onOpen
+        // Aspect-fit into a square like the system thumbnail; pad slivers so they stay clickable.
         let size = self.image.size
-        let width: CGFloat = 220
-        let height = max(110, width * size.height / max(1, size.width))
-        self.imageRect = CGRect(x: 0, y: 0, width: width, height: height)
-        super.init(frame: CGRect(x: 0, y: 0, width: width, height: height))
+        let maxSide: CGFloat = 220, minSide: CGFloat = 60
+        let fit = min(maxSide / max(1, size.width), maxSide / max(1, size.height))
+        let fitted = CGSize(width: size.width * fit, height: size.height * fit)
+        let frame = CGRect(x: 0, y: 0, width: max(minSide, fitted.width), height: max(minSide, fitted.height))
+        self.imageRect = CGRect(x: (frame.width - fitted.width) / 2, y: (frame.height - fitted.height) / 2,
+                                width: fitted.width, height: fitted.height)
+        super.init(frame: frame)
         wantsLayer = true
         layer?.cornerRadius = 12
         layer?.masksToBounds = true
@@ -142,7 +146,7 @@ import AppKit
             return
         }
         let item = NSDraggingItem(pasteboardWriter: url as NSURL)
-        item.setDraggingFrame(bounds, contents: image)
+        item.setDraggingFrame(imageRect, contents: image)
         timer?.invalidate()
         timer = nil
         beginDraggingSession(with: [item], event: event, source: self)
