@@ -3,7 +3,7 @@ import Combine
 import Security
 
 @MainActor
-final class Updater: ObservableObject {
+final class Updater: NSObject, ObservableObject {
     static let shared = Updater()
     static let repo = "classicluna/macasnap"
 
@@ -23,8 +23,11 @@ final class Updater: ObservableObject {
 
     private var timer: Timer?
     private var started = false
+    /// Version already announced this session; "Later" leaves only the menu bar dot until the next launch.
+    private var promptedVersion: String?
+    private var updateAlert: NSAlert?
 
-    private init() {}
+    private override init() {}
 
     func start() {
         guard !started, Bundle.main.bundleURL.pathExtension == "app" else { return }
@@ -62,6 +65,10 @@ final class Updater: ObservableObject {
             available = Self.isNewer(version, than: Self.currentVersion)
                 ? Release(version: version, zipURL: zipURL, pageURL: pageURL) : nil
             lastError = nil
+            if let release = available, release.version != promptedVersion {
+                promptedVersion = release.version
+                promptToInstall(release)
+            }
         } catch {
             lastError = error.localizedDescription
         }
@@ -71,6 +78,36 @@ final class Updater: ObservableObject {
         guard let release = available, !isInstalling else { return }
         isInstalling = true
         Task { await install(release) }
+    }
+
+    /// Floats the alert without activating Macasnap, so keystrokes meant for the frontmost app can't press a button,
+    /// and without a modal loop, so captures keep working while it is ignored.
+    private func promptToInstall(_ release: Release) {
+        closeUpdateAlert()
+        let alert = NSAlert()
+        alert.messageText = "Macasnap \(release.version) is available"
+        alert.informativeText = "You have \(Self.currentVersion). Macasnap will restart to finish updating. You can also update later from the menu bar icon."
+        let install = alert.addButton(withTitle: "Install Update")
+        install.target = self
+        install.action = #selector(installFromAlert)
+        let later = alert.addButton(withTitle: "Later")
+        later.target = self
+        later.action = #selector(closeUpdateAlert)
+        alert.layout()
+        alert.window.level = .floating
+        alert.window.center()
+        alert.window.orderFrontRegardless()
+        updateAlert = alert
+    }
+
+    @objc private func installFromAlert() {
+        closeUpdateAlert()
+        installAvailable()
+    }
+
+    @objc private func closeUpdateAlert() {
+        updateAlert?.window.orderOut(nil)
+        updateAlert = nil
     }
 
     private func install(_ release: Release) async {
