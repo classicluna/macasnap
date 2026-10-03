@@ -27,6 +27,7 @@ final class CaptureSession {
     fileprivate(set) var mode: Mode
     fileprivate var hovered: WindowTarget?
     private let completion: (Outcome) -> Void
+    private let previousApplication: NSRunningApplication?
     private var overlays: [NSWindow] = []
     private var views: [OverlayView] = []
     private var targets: [WindowTarget] = [] // front to back
@@ -41,6 +42,7 @@ final class CaptureSession {
     private init(mode: Mode, completion: @escaping (Outcome) -> Void) {
         self.mode = mode
         self.completion = completion
+        previousApplication = NSWorkspace.shared.frontmostApplication
     }
 
     private func begin() async {
@@ -173,6 +175,12 @@ final class CaptureSession {
     private func finish(_ outcome: Outcome) {
         closeOverlays()
         Self.current = nil
+        if case .cancelled = outcome, NSApp.isActive,
+           let previousApplication,
+           previousApplication.processIdentifier != ProcessInfo.processInfo.processIdentifier,
+           !previousApplication.isTerminated {
+            previousApplication.activate(options: [])
+        }
         completion(outcome)
     }
 
@@ -253,8 +261,7 @@ private final class OverlayView: NSView {
         case .area:
             defer { dragStart = nil }
             guard let rect = selection?.integral, rect.width >= 4, rect.height >= 4 else {
-                selection = nil
-                return
+                return session.cancel()
             }
             let scale = screen.backingScaleFactor
             let pixelRect = CGRect(x: rect.minX * scale, y: (bounds.height - rect.maxY) * scale,

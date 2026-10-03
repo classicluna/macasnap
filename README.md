@@ -3,9 +3,13 @@
 Menu bar screenshot beautifier that replaces Cmd-Shift-4.
 
 Press Cmd-Shift-4 and drag out an area (Space switches to window mode, Esc or right-click
-cancels). The snippet is centred on a gradient or macOS wallpaper with padding, rounded corners
-and a drop shadow, copied to the clipboard, and shown as a floating thumbnail in the corner.
+cancels; a left-click without dragging also cancels in area mode, including tiny movements that
+do not produce a selection at least 4 points wide and tall). The snippet is centred on a
+gradient or macOS wallpaper with padding, rounded corners and a drop shadow, copied to the
+clipboard, and shown as a floating thumbnail in the corner.
 Drag the thumbnail into any app, or click it to open the editor.
+Cancelling returns focus to the previously active app so you can continue typing in its focused
+field. If you switched to another app during capture, cancellation leaves that app active.
 
 ## Install
 
@@ -27,6 +31,8 @@ Macasnap checks GitHub for a new release at launch and every 12 hours. When one 
 menu bar icon gets a red dot, the menu shows "Update to Macasnap X...", and the editor shows an
 Update button. Updating downloads the release, checks it is signed by the same certificate as the
 running app, swaps it in and relaunches; permissions carry over.
+Choose "Check for Updates..." in the menu bar menu to check immediately. It offers any available
+update again, even after choosing Later, or reports that you are up to date or the check failed.
 
 ## Features
 

@@ -19,6 +19,7 @@ final class Updater: NSObject, ObservableObject {
 
     @Published private(set) var available: Release?
     @Published private(set) var isInstalling = false
+    @Published private(set) var isChecking = false
     @Published private(set) var lastError: String?
 
     private var timer: Timer?
@@ -38,8 +39,10 @@ final class Updater: NSObject, ObservableObject {
         }
     }
 
-    func checkNow() async {
-        guard Bundle.main.bundleURL.pathExtension == "app" else { return }
+    func checkNow(manual: Bool = false) async {
+        guard Bundle.main.bundleURL.pathExtension == "app", !isChecking, !isInstalling else { return }
+        isChecking = true
+        defer { isChecking = false }
         guard let url = URL(string: "https://api.github.com/repos/\(Self.repo)/releases/latest") else { return }
 
         do {
@@ -65,13 +68,35 @@ final class Updater: NSObject, ObservableObject {
             available = Self.isNewer(version, than: Self.currentVersion)
                 ? Release(version: version, zipURL: zipURL, pageURL: pageURL) : nil
             lastError = nil
-            if let release = available, release.version != promptedVersion {
-                promptedVersion = release.version
-                promptToInstall(release)
+            if let release = available {
+                if manual || release.version != promptedVersion {
+                    promptedVersion = release.version
+                    promptToInstall(release)
+                }
+            } else if manual {
+                showCheckResult("Macasnap is up to date", detail: "You have the latest version (\(Self.currentVersion)).")
             }
         } catch {
             lastError = error.localizedDescription
+            if manual {
+                showCheckResult("Could not check for updates", detail: error.localizedDescription)
+            }
         }
+    }
+
+    private func showCheckResult(_ message: String, detail: String) {
+        closeUpdateAlert()
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.informativeText = detail
+        let button = alert.addButton(withTitle: "OK")
+        button.target = self
+        button.action = #selector(closeUpdateAlert)
+        alert.layout()
+        alert.window.level = .floating
+        alert.window.center()
+        alert.window.orderFrontRegardless()
+        updateAlert = alert
     }
 
     func installAvailable() {

@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 import Combine
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     private var statusItem: NSStatusItem!
     private var hotKeys: [HotKey] = []
     private var editor: EditorWindowController?
@@ -74,8 +74,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(toggle("Use Cmd-Shift-4 for Macasnap", !SystemShortcut.isAreaCaptureEnabled, #selector(toggleSystemShortcut)))
         menu.addItem(toggle("Launch at Login", Prefs.launchAtLogin, #selector(toggleLaunchAtLogin)))
         menu.addItem(item("Setup Guide...", #selector(showSetupGuide)))
+        menu.addItem(item(Updater.shared.isChecking ? "Checking for Updates..." : "Check for Updates...", #selector(checkForUpdates)))
         menu.addItem(.separator())
         menu.addItem(item("Quit Macasnap", #selector(NSApplication.terminate(_:)), key: "q"))
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(checkForUpdates) {
+            return !Updater.shared.isChecking && !Updater.shared.isInstalling
+        }
+        return true
     }
 
     private func item(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
@@ -98,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func afterCaptureEditor() { Prefs.afterCapture = .editor }
     @objc private func showSetupGuide() { Onboarding.show() }
     @objc private func installUpdate() { Updater.shared.installAvailable() }
+    @objc private func checkForUpdates() { Task { await Updater.shared.checkNow(manual: true) } }
     @objc private func toggleLaunchAtLogin() { Prefs.launchAtLogin.toggle() }
     @objc private func toggleSystemShortcut() {
         SystemShortcut.setAreaCaptureEnabled(!SystemShortcut.isAreaCaptureEnabled)
